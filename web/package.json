@@ -1,0 +1,24 @@
+{
+  "name": "notes-widget",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "build": "node esbuild.config.mjs",
+    "dev": "node esbuild.config.mjs --watch"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "dependencies": {
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.2",
+    "@types/react-dom": "^19.2.2",
+    "esbuild": "^0.25.11",
+    "typescript": "^5.9.3"
+  }
+}
