@@ -21,10 +21,68 @@ function useToolOutput(): NotesStructured | null {
   return out;
 }
 
+function PillButton({
+  variant = "neutral",
+  onClick,
+  children,
+  title,
+  disabled,
+}: {
+  variant?: "neutral" | "primary" | "danger";
+  onClick?: () => void;
+  children: React.ReactNode;
+  title?: string;
+  disabled?: boolean;
+}) {
+  const stylesBy = {
+    neutral: {
+      background: "#eef2f7",
+      borderColor: "#d1d5db",
+      color: "#111827",
+    },
+    primary: {
+      background: "#e6ecff",
+      borderColor: "#c7d2fe",
+      color: "#111827",
+    },
+    danger: {
+      background: "#fde8e8",
+      borderColor: "#fecaca",
+      color: "#7f1d1d",
+    },
+  } as const;
+
+  const s = stylesBy[variant];
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={title}
+      disabled={disabled}
+      style={{
+        padding: "8px 14px",
+        borderRadius: 16,
+        fontWeight: 600,
+        border: `1px solid ${s.borderColor}`,
+        background: s.background,
+        color: s.color,
+        cursor: disabled ? "not-allowed" : "pointer",
+        boxShadow: "0 1px 0 rgba(0,0,0,0.05)",
+        outline: "none",
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
 export default function App() {
   const initial = useToolOutput();
   const [data, setData] = useState<NotesStructured | null>(initial);
   const [saving, setSaving] = useState(false);
+  const [showNew, setShowNew] = useState(false);
+  const [newTitle, setNewTitle] = useState("");
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const saveTimer = useRef<number | null>(null);
 
   useEffect(() => {
@@ -44,18 +102,26 @@ export default function App() {
   }
 
   async function onSelect(id: string) {
+    setConfirmDelete(false);
     await call("get_note", { id });
   }
 
-  async function onNew() {
-    const title = prompt("Title for the new note?")?.trim();
-    if (!title) return;
+  async function onRefresh() {
+    setConfirmDelete(false);
+    await call("render_notes");
+  }
+
+  async function onCreate() {
+    const title = (newTitle || "Untitled").trim();
+    setShowNew(false);
+    setNewTitle("");
     await call("create_note", { title, body: "" });
   }
 
-  async function onDelete(id: string) {
-    if (!confirm("Delete this note?")) return;
-    await call("delete_note", { id });
+  async function onDeleteConfirmed() {
+    if (!selectedId) return;
+    setConfirmDelete(false);
+    await call("delete_note", { id: selectedId });
   }
 
   function debouncedUpdate(partial: { title?: string; body?: string }) {
@@ -82,36 +148,74 @@ export default function App() {
   }
 
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "280px 1fr", gap: 12, padding: 12 }}>
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: "320px 1fr",
+        gap: 16,
+        padding: 16,
+        background: "#ffffff",
+        color: "#111827",
+        borderRadius: 16,
+        border: "1px solid #e5e7eb",
+      }}
+    >
       {/* Left column: list */}
-      <div style={{ borderRight: "1px solid #333", paddingRight: 12 }}>
-        <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-          <button onClick={() => call("render_notes")}>Refresh</button>
-          <button onClick={onNew}>New</button>
+      <div style={{ borderRight: "1px solid #e5e7eb", paddingRight: 16 }}>
+        <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 12 }}>
+          <PillButton variant="neutral" onClick={onRefresh} title="Refresh">
+            Refresh
+          </PillButton>
+          {!showNew ? (
+            <PillButton variant="primary" onClick={() => setShowNew(true)} title="Add a new note">
+              Add
+            </PillButton>
+          ) : (
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <input
+                value={newTitle}
+                onChange={(e) => setNewTitle(e.target.value)}
+                placeholder="New note title"
+                style={{
+                  padding: "8px 10px",
+                  borderRadius: 12,
+                  border: "1px solid #d1d5db",
+                  width: 160,
+                }}
+              />
+              <PillButton variant="primary" onClick={onCreate}>
+                Create
+              </PillButton>
+              <PillButton variant="neutral" onClick={() => (setShowNew(false), setNewTitle(""))}>
+                Cancel
+              </PillButton>
+            </div>
+          )}
         </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {notes.map((n) => (
             <button
               key={n.id}
+              type="button"
               onClick={() => onSelect(n.id)}
               style={{
                 textAlign: "left",
-                padding: "8px 10px",
-                background: n.id === selectedId ? "#1f2937" : "#111827",
-                color: "#e5e7eb",
-                border: "1px solid #374151",
-                borderRadius: 8,
-                cursor: "pointer"
+                padding: "12px 14px",
+                background: n.id === selectedId ? "#eef2ff" : "#f9fafb",
+                color: "#111827",
+                border: "1px solid #e5e7eb",
+                borderRadius: 12,
+                cursor: "pointer",
               }}
             >
-              <div style={{ fontWeight: 600, fontSize: 14 }}>{n.title || "(untitled)"}</div>
+              <div style={{ fontWeight: 700, fontSize: 14 }}>{n.title || "(untitled)"}</div>
               <div style={{ fontSize: 12, opacity: 0.7 }}>
                 {new Date(n.updated_at).toLocaleString()}
               </div>
             </button>
           ))}
           {notes.length === 0 && (
-            <div style={{ color: "#9ca3af" }}>No notes yet. Click "New" to create one.</div>
+            <div style={{ color: "#6b7280" }}>No notes yet. Click “Add” to create one.</div>
           )}
         </div>
       </div>
@@ -119,31 +223,44 @@ export default function App() {
       {/* Right column: editor */}
       <div>
         {!selected ? (
-          <div style={{ color: "#9ca3af" }}>Select a note from the left to start editing.</div>
+          <div style={{ color: "#6b7280" }}>Select a note from the left to start editing.</div>
         ) : (
-          <div style={{ display: "grid", gap: 10 }}>
-            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <div style={{ display: "grid", gap: 12 }}>
+            <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
               <input
                 value={selected.title}
                 onChange={onTitleChange}
                 placeholder="Title"
                 style={{
                   width: "100%",
-                  padding: "8px 10px",
+                  padding: "10px 12px",
                   fontSize: 16,
-                  background: "#111827",
-                  color: "#e5e7eb",
-                  border: "1px solid #374151",
-                  borderRadius: 8
+                  background: "#ffffff",
+                  color: "#111827",
+                  border: "1px solid #d1d5db",
+                  borderRadius: 12,
                 }}
               />
-              <button
-                onClick={() => selectedId && onDelete(selectedId)}
-                style={{ background: "#7f1d1d", color: "white", padding: "8px 10px", borderRadius: 8 }}
-              >
-                Delete
-              </button>
-              <span style={{ fontSize: 12, color: saving ? "#93c5fd" : "#9ca3af" }}>
+              {!confirmDelete ? (
+                <PillButton
+                  variant="danger"
+                  onClick={() => setConfirmDelete(true)}
+                  title="Delete this note"
+                  disabled={!selectedId}
+                >
+                  Delete
+                </PillButton>
+              ) : (
+                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                  <PillButton variant="danger" onClick={onDeleteConfirmed}>
+                    Confirm delete
+                  </PillButton>
+                  <PillButton variant="neutral" onClick={() => setConfirmDelete(false)}>
+                    Cancel
+                  </PillButton>
+                </div>
+              )}
+              <span style={{ fontSize: 12, color: saving ? "#2563eb" : "#6b7280" }}>
                 {saving ? "Saving…" : "Saved"}
               </span>
             </div>
@@ -154,14 +271,14 @@ export default function App() {
               style={{
                 width: "100%",
                 height: 420,
-                padding: 12,
+                padding: 14,
                 fontSize: 14,
-                lineHeight: 1.5,
-                background: "#0b1220",
-                color: "#e5e7eb",
-                border: "1px solid #374151",
-                borderRadius: 12,
-                resize: "vertical"
+                lineHeight: 1.6,
+                background: "#fcfcfd",
+                color: "#111827",
+                border: "1px solid #e5e7eb",
+                borderRadius: 14,
+                resize: "vertical",
               }}
             />
           </div>
