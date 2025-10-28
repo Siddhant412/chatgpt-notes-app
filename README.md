@@ -3,8 +3,8 @@
 An interactive, chat‑native notes editor which renders inside ChatGPT. It pairs nicely with the “Research Papers” app. Ask ChatGPT to take a paper summary and create a note.
 
 ## Prerequisites
-Node.js 18+
-ngrok (or any HTTPS tunnel) for the MCP server
+Node.js 18+  
+ngrok (or any HTTPS tunnel) for the MCP server  
 ChatGPT plus/pro subscription and development mode turned on
 
 ### Setup
